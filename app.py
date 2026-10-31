@@ -1,86 +1,25 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template_string, request, jsonify
 from supabase import create_client, Client
 import os
 
 app = Flask(__name__)
 
 # =========================================================
-# ⚠️ استعمل متغيرات البيئة بدل ما تحط المفاتيح فـ الكود
+# ⚠️ مفاتيح Supabase
 # =========================================================
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vyqufwxcvidpbyicfxfy.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cXVmd3hjdmlkcGJ5aWNmeGZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDk4MjQwMDAsImV4cCI6MjAyNTQwMDAwMH0.xxxxx")
+SUPABASE_KEY = os.environ.get(
+    "SUPABASE_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cXVmd3hjdmlkcGJ5aWNmeGZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDk4MjQwMDAsImV4cCI6MjAyNTQwMDAwMH0.xxxxx"
+)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
 # =========================================================
-# المسارات
+# HTML كامل داخل string Python (triple quotes)
 # =========================================================
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-
-@app.route('/api/books', methods=['GET'])
-def get_books():
-    try:
-        response = supabase.table('books').select('*').order('id', desc=True).execute()
-        return jsonify(response.data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/books', methods=['POST'])
-def add_book():
-    try:
-        data = request.json
-        if not data.get('title') or not data.get('author') or not data.get('downloadUrl'):
-            return jsonify({"error": "Missing required fields"}), 400
-
-        response = supabase.table('books').insert({
-            "title": data['title'],
-            "author": data['author'],
-            "downloadUrl": data['downloadUrl'],
-            "coverUrl": data.get('coverUrl', ''),
-            "views": 0,
-            "downloads": 0
-        }).execute()
-        return jsonify({"message": "Book added successfully", "data": response.data}), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/books/<int:id>', methods=['DELETE'])
-def delete_book(id):
-    try:
-        supabase.table('books').delete().eq('id', id).execute()
-        return jsonify({"message": "Book deleted successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/books/<int:id>/stats', methods=['POST'])
-def update_stats(id):
-    try:
-        data = request.json
-        stat_name = data.get('stat')
-        if stat_name not in ['views', 'downloads']:
-            return jsonify({"error": "Invalid stat"}), 400
-
-        response = supabase.table('books').select(stat_name).eq('id', id).execute()
-        if not response.data:
-            return jsonify({"error": "Book not found"}), 404
-
-        current_value = response.data[0].get(stat_name, 0) or 0
-        new_value = current_value + 1
-
-        supabase.table('books').update({stat_name: new_value}).eq('id', id).execute()
-        return jsonify({"message": "Stat updated", "new_value": new_value}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-if __name__ == '__main__':
+INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -541,7 +480,6 @@ if __name__ == '__main__':
 </head>
 <body>
 
-    <!-- ==================== الشاشة الرئيسية ==================== -->
     <div id="home-screen">
         <header>
             <h1><i class="fas fa-book-open"></i> مكتبتي الرقمية</h1>
@@ -557,7 +495,6 @@ if __name__ == '__main__':
         <div id="books-container" class="books-grid"></div>
     </div>
 
-    <!-- ==================== شاشة القراءة ==================== -->
     <div id="reader-screen">
         <div class="reader-header">
             <button id="back-btn" class="btn"><i class="fas fa-arrow-right"></i> رجوع</button>
@@ -574,7 +511,6 @@ if __name__ == '__main__':
         </div>
     </div>
 
-    <!-- ==================== مودال إضافة كتاب ==================== -->
     <div id="admin-modal" class="modal-overlay">
         <div class="modal-content">
             <h2><i class="fas fa-plus-circle"></i> إضافة كتاب جديد</h2>
@@ -590,7 +526,6 @@ if __name__ == '__main__':
     </div>
 
     <script>
-        // ==================== المتغيرات ====================
         let allBooks = [];
         let currentBook = null;
         let pdfDoc = null;
@@ -601,7 +536,6 @@ if __name__ == '__main__':
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
 
-        // ==================== دوال الـ API ====================
         async function fetchBooks() {
             try {
                 const response = await fetch('/api/books');
@@ -635,7 +569,7 @@ if __name__ == '__main__':
 
         async function deleteBookFromServer(id) {
             try {
-                await fetch(`/api/books/${id}`, { method: 'DELETE' });
+                await fetch('/api/books/' + id, { method: 'DELETE' });
                 fetchBooks();
             } catch (error) {
                 console.error('خطأ في الحذف');
@@ -644,7 +578,7 @@ if __name__ == '__main__':
 
         async function incrementStat(id, statName) {
             try {
-                await fetch(`/api/books/${id}/stats`, {
+                await fetch('/api/books/' + id + '/stats', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ stat: statName })
@@ -656,7 +590,6 @@ if __name__ == '__main__':
             }
         }
 
-        // ==================== عرض الكتب ====================
         function displayBooks(books) {
             const container = document.getElementById('books-container');
             container.innerHTML = '';
@@ -668,28 +601,28 @@ if __name__ == '__main__':
                 const bookCard = document.createElement('div');
                 bookCard.className = 'book-card';
 
-                let coverHtml = `<div class="book-cover"><i class="fas fa-book"></i></div>`;
+                let coverHtml = '<div class="book-cover"><i class="fas fa-book"></i></div>';
                 if (book.coverUrl) {
-                    coverHtml = `<div class="book-cover"><img src="${book.coverUrl}" alt="${book.title}" onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-book\\'></i>';"></div>`;
+                    coverHtml = '<div class="book-cover"><img src="' + book.coverUrl + '" alt="' + book.title + '" onerror="this.style.display=\\'none\\'; this.parentElement.innerHTML=\\'<i class=&quot;fas fa-book&quot;></i>\\';"></div>';
                 }
 
                 const views = book.views || 0;
                 const downloads = book.downloads || 0;
 
-                bookCard.innerHTML = `
-                    ${coverHtml}
-                    <h3>${book.title}</h3>
-                    <p>${book.author}</p>
-                    <div class="stats">
-                        <span><i class="fas fa-eye" style="color:var(--primary);"></i> ${views}</span>
-                        <span><i class="fas fa-download" style="color:var(--success);"></i> ${downloads}</span>
-                    </div>
-                    <div class="card-actions">
-                        <button class="btn btn-read" onclick="readBook(${book.id})"><i class="fas fa-book-reader"></i> قراءة</button>
-                        <a href="${book.downloadUrl}" target="_blank" class="btn btn-download" onclick="incrementStat(${book.id}, 'downloads')" download><i class="fas fa-download"></i> تحميل</a>
-                    </div>
-                    <button class="btn btn-delete" onclick="confirmDelete(${book.id})"><i class="fas fa-trash"></i> حذف</button>
-                `;
+                bookCard.innerHTML =
+                    coverHtml +
+                    '<h3>' + book.title + '</h3>' +
+                    '<p>' + book.author + '</p>' +
+                    '<div class="stats">' +
+                        '<span><i class="fas fa-eye" style="color:var(--primary);"></i> ' + views + '</span>' +
+                        '<span><i class="fas fa-download" style="color:var(--success);"></i> ' + downloads + '</span>' +
+                    '</div>' +
+                    '<div class="card-actions">' +
+                        '<button class="btn btn-read" onclick="readBook(' + book.id + ')"><i class="fas fa-book-reader"></i> قراءة</button>' +
+                        '<a href="' + book.downloadUrl + '" target="_blank" class="btn btn-download" onclick="incrementStat(' + book.id + ', \\'downloads\\')" download><i class="fas fa-download"></i> تحميل</a>' +
+                    '</div>' +
+                    '<button class="btn btn-delete" onclick="confirmDelete(' + book.id + ')"><i class="fas fa-trash"></i> حذف</button>';
+
                 container.appendChild(bookCard);
             });
         }
@@ -700,7 +633,6 @@ if __name__ == '__main__':
             }
         }
 
-        // ==================== القارئ PDF ====================
         function readBook(id) {
             const book = allBooks.find(b => b.id === id);
             if (!book) return;
@@ -761,7 +693,6 @@ if __name__ == '__main__':
             else { renderPage(num); }
         }
 
-        // ==================== الأحداث ====================
         document.getElementById('prev-page').addEventListener('click', () => {
             if (pageNum > 1) { pageNum--; queueRenderPage(pageNum); }
         });
@@ -786,7 +717,6 @@ if __name__ == '__main__':
             displayBooks(filtered);
         });
 
-        // ==================== الوضع الليلي ====================
         const themeToggle = document.getElementById('theme-toggle');
         if (localStorage.getItem('theme') === 'dark') {
             document.body.classList.add('dark-mode');
@@ -799,7 +729,6 @@ if __name__ == '__main__':
             themeToggle.innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
         });
 
-        // ==================== لوحة التحكم ====================
         const adminModal = document.getElementById('admin-modal');
         document.getElementById('admin-toggle').addEventListener('click', () => adminModal.style.display = 'flex');
         document.getElementById('cancel-admin').addEventListener('click', () => adminModal.style.display = 'none');
@@ -824,9 +753,83 @@ if __name__ == '__main__':
             adminModal.style.display = 'none';
         });
 
-        // ==================== بدء التطبيق ====================
         fetchBooks();
     </script>
 </body>
 </html>
+"""
+
+
+# =========================================================
+# المسارات (Routes)
+# =========================================================
+
+@app.route('/')
+def index():
+    return render_template_string(INDEX_HTML)
+
+
+@app.route('/api/books', methods=['GET'])
+def get_books():
+    try:
+        response = supabase.table('books').select('*').order('id', desc=True).execute()
+        return jsonify(response.data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/books', methods=['POST'])
+def add_book():
+    try:
+        data = request.json
+        if not data.get('title') or not data.get('author') or not data.get('downloadUrl'):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        response = supabase.table('books').insert({
+            "title": data['title'],
+            "author": data['author'],
+            "downloadUrl": data['downloadUrl'],
+            "coverUrl": data.get('coverUrl', ''),
+            "views": 0,
+            "downloads": 0
+        }).execute()
+        return jsonify({"message": "Book added successfully", "data": response.data}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/books/<int:id>', methods=['DELETE'])
+def delete_book(id):
+    try:
+        supabase.table('books').delete().eq('id', id).execute()
+        return jsonify({"message": "Book deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/books/<int:id>/stats', methods=['POST'])
+def update_stats(id):
+    try:
+        data = request.json
+        stat_name = data.get('stat')
+        if stat_name not in ['views', 'downloads']:
+            return jsonify({"error": "Invalid stat"}), 400
+
+        response = supabase.table('books').select(stat_name).eq('id', id).execute()
+        if not response.data:
+            return jsonify({"error": "Book not found"}), 404
+
+        current_value = response.data[0].get(stat_name, 0) or 0
+        new_value = current_value + 1
+
+        supabase.table('books').update({stat_name: new_value}).eq('id', id).execute()
+        return jsonify({"message": "Stat updated", "new_value": new_value}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =========================================================
+# تشغيل التطبيق
+# =========================================================
+if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
